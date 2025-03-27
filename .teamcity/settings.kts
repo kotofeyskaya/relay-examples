@@ -7,6 +7,7 @@ import jetbrains.buildServer.configs.kotlin.buildFeatures.notifications
 import jetbrains.buildServer.configs.kotlin.buildSteps.powerShell
 import jetbrains.buildServer.configs.kotlin.failureConditions.BuildFailureOnMetric
 import jetbrains.buildServer.configs.kotlin.failureConditions.failOnMetricChange
+import jetbrains.buildServer.configs.kotlin.buildFeatures.commitStatusPublisher
 
 /*
 The settings script is an entry point for defining a TeamCity
@@ -46,6 +47,9 @@ object RelayExamplesVcs : GitVcsRoot({
     name = "Relay Examples"
     url = "https://github.com/relayjs/relay-examples.git"
     branch = "refs/heads/main"
+    branchSpec = """
+        +:refs/heads/*
+    """.trimIndent()
 })
 
 object RelayExamplesBuild : BuildType({
@@ -57,53 +61,28 @@ object RelayExamplesBuild : BuildType({
     }
 
     steps {
-        // Build todo example
+        // Install yarn globally if not already installed
         script {
-            name = "Build Todo Example"
-            workingDir = "todo"
+            name = "Install yarn"
             scriptContent = """
-                yarn install
-                yarn build
+                npm install -g yarn
             """.trimIndent()
         }
 
-        // Build issue-tracker example
+        // Build each example project
         script {
-            name = "Build Issue Tracker Example"
-            workingDir = "issue-tracker"
+            name = "Build examples"
             scriptContent = """
-                yarn install
-                yarn build
-            """.trimIndent()
-        }
-
-        // Build issue-tracker-next-v13 example
-        script {
-            name = "Build Issue Tracker Next v13 Example"
-            workingDir = "issue-tracker-next-v13"
-            scriptContent = """
-                yarn install
-                yarn build
-            """.trimIndent()
-        }
-
-        // Build data-driven-dependencies example
-        script {
-            name = "Build Data Driven Dependencies Example"
-            workingDir = "data-driven-dependencies"
-            scriptContent = """
-                yarn install
-                yarn build
-            """.trimIndent()
-        }
-
-        // Build newsfeed example
-        script {
-            name = "Build Newsfeed Example"
-            workingDir = "newsfeed"
-            scriptContent = """
-                yarn install
-                yarn build
+                # Install dependencies and build each example
+                for dir in */; do
+                    if [ -f "${'$'}dir/package.json" ]; then
+                        echo "Building ${'$'}dir"
+                        cd ${'$'}dir
+                        yarn install
+                        yarn build
+                        cd ..
+                    fi
+                done
             """.trimIndent()
         }
     }
@@ -119,12 +98,10 @@ object RelayExamplesBuild : BuildType({
         }
     }
 
-    // Publish artifacts
     artifactRules = """
-        todo => todo.zip
-        issue-tracker => issue-tracker.zip
-        issue-tracker-next-v13 => issue-tracker-next-v13.zip
-        data-driven-dependencies => data-driven-dependencies.zip
-        newsfeed => newsfeed.zip
+        # Publish build artifacts for each example
+        */public/** => public-assets.zip
+        */__generated__/** => generated-artifacts.zip
+        */dist/** => dist-artifacts.zip
     """.trimIndent()
 })
